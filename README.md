@@ -6,13 +6,13 @@ ctom is a free and open-source text editor program.
 
 ## Features:
 
-Auto bracket support C/C++ (Python and others coming soon).
-Quick run (with make/run).
-Custom run flags in settings.
-Custom .ttf font.
-3 different screen layouts, 3 themes, 1 custom themes.
-Resizable, integrated terminal, file manager.
-Auto save last setting.
++ Auto bracket support C/C++ (Python and others coming soon).
++ Quick run (with make/run).
++ Custom run flags in settings.
++ Custom .ttf font.
++ 3 different screen layouts, 3 themes, 1 custom themes.
++ Resizable, integrated terminal, file manager.
++ Auto save last setting.
 
 ## Demo
 - Main interface:
