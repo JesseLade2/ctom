@@ -28,14 +28,15 @@ Auto save last setting.
   <img width="1282" height="832" alt="image" src="https://github.com/user-attachments/assets/2578fd9a-e7a0-46b2-b21f-30ff597e3c3c" />
   + Custom theme:
   <img width="1282" height="832" alt="image" src="https://github.com/user-attachments/assets/bc75c02b-3002-4ab0-99dc-02daf0120154" />
-  - You can also change the font by change the .ttf file
+  + You can also change the font by change the .ttf file
   <img width="519" height="115" alt="image" src="https://github.com/user-attachments/assets/c879adab-ba82-48a0-850d-2e9be8d3d044" />
 
-- And change the build commands:
+  + And change the build commands:
   <img width="489" height="170" alt="image" src="https://github.com/user-attachments/assets/0246c77c-c8b5-40cd-84ce-0d96b3370cec" />
 
-- 3 different screen layouts:
+## 3 different screen layouts:
 https://github.com/user-attachments/assets/690f4d46-4f11-4ec9-81af-cee4cb344fe0
+
 
 
 ## Support OS
