@@ -1,20 +1,14 @@
+// ... (Includes and CleanString helper stay the same) ...
 #ifdef _WIN32
-    // 1. Rename conflicting functions to something harmless
     #define CloseWindow Win32_CloseWindow
     #define ShowCursor  Win32_ShowCursor
     #define PlaySound   Win32_PlaySound
     #define LoadImage   Win32_LoadImage
     #define DrawText    Win32_DrawText
     #define DrawTextEx  Win32_DrawTextEx
-    
-    // 2. Block GDI Rectangle
     #define NOGDI 
     #define Rectangle Win32_Rectangle_Dummy
-    
-    // 3. Include Windows
     #include <windows.h>
-    
-    // 4. Undefine everything so Raylib can use the names
     #undef CloseWindow
     #undef ShowCursor
     #undef PlaySound
@@ -41,7 +35,6 @@
     #include <unistd.h>
 #endif
 
-// Now it is safe to include Raylib
 #include "../include/Terminal.hpp"
 
 #include <iostream>
@@ -172,10 +165,7 @@ static void AppendAnsiText(std::vector<TerminalLine>& lines, Color& currentColor
 }
 
 Terminal::Terminal() {}
-
-Terminal::~Terminal() {
-    close();
-}
+Terminal::~Terminal() { close(); }
 
 void Terminal::init() {
     createShellProcess();
@@ -192,34 +182,19 @@ void Terminal::init() {
 
 void Terminal::createShellProcess() {
 #ifdef _WIN32
-    SECURITY_ATTRIBUTES saAttr;
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saAttr.bInheritHandle = TRUE;
-    saAttr.lpSecurityDescriptor = NULL;
-
+    SECURITY_ATTRIBUTES saAttr; saAttr.nLength = sizeof(SECURITY_ATTRIBUTES); saAttr.bInheritHandle = TRUE; saAttr.lpSecurityDescriptor = NULL;
     if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0)) return;
     if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0)) return;
-
     if (!CreatePipe(&hChildStd_IN_Rd, &hChildStd_IN_Wr, &saAttr, 0)) return;
     if (!SetHandleInformation(hChildStd_IN_Wr, HANDLE_FLAG_INHERIT, 0)) return;
-
-    PROCESS_INFORMATION piProcInfo;
-    STARTUPINFOA siStartInfo;
-    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
-    ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
+    PROCESS_INFORMATION piProcInfo; STARTUPINFOA siStartInfo;
+    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION)); ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
     siStartInfo.cb = sizeof(STARTUPINFO);
-    siStartInfo.hStdError = hChildStd_OUT_Wr;
-    siStartInfo.hStdOutput = hChildStd_OUT_Wr;
-    siStartInfo.hStdInput = hChildStd_IN_Rd;
-    siStartInfo.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-    siStartInfo.wShowWindow = 0; // 0 is SW_HIDE
-
+    siStartInfo.hStdError = hChildStd_OUT_Wr; siStartInfo.hStdOutput = hChildStd_OUT_Wr; siStartInfo.hStdInput = hChildStd_IN_Rd;
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW; siStartInfo.wShowWindow = 0; 
     char cmdLine[] = "cmd.exe";
     if (CreateProcessA(NULL, cmdLine, NULL, NULL, TRUE, 0, NULL, NULL, &siStartInfo, &piProcInfo)) {
-        hProcess = piProcInfo.hProcess;
-        CloseHandle(piProcInfo.hThread); 
-        CloseHandle(hChildStd_OUT_Wr);   
-        CloseHandle(hChildStd_IN_Rd);    
+        hProcess = piProcInfo.hProcess; CloseHandle(piProcInfo.hThread); CloseHandle(hChildStd_OUT_Wr); CloseHandle(hChildStd_IN_Rd);    
     }
 #elif defined(__APPLE__)
     currentColor = theme.text;
@@ -260,13 +235,8 @@ void Terminal::createShellProcess() {
 
 void Terminal::close() {
 #ifdef _WIN32
-    if (hProcess) {
-        TerminateProcess(hProcess, 0);
-        CloseHandle(hProcess);
-        hProcess = nullptr;
-    }
-    if (hChildStd_IN_Wr) CloseHandle(hChildStd_IN_Wr);
-    if (hChildStd_OUT_Rd) CloseHandle(hChildStd_OUT_Rd);
+    if (hProcess) { TerminateProcess(hProcess, 0); CloseHandle(hProcess); hProcess = nullptr; }
+    if (hChildStd_IN_Wr) CloseHandle(hChildStd_IN_Wr); if (hChildStd_OUT_Rd) CloseHandle(hChildStd_OUT_Rd);
 #endif
 #if defined(__APPLE__) || defined(__linux__)
     if (shellPid > 0) {
@@ -284,7 +254,6 @@ void Terminal::close() {
 void Terminal::readFromPipe() {
 #ifdef _WIN32
     if (!hChildStd_OUT_Rd) return;
-
     DWORD dwRead, dwAvail, dwLeft;
     if (PeekNamedPipe(hChildStd_OUT_Rd, NULL, 0, NULL, &dwAvail, &dwLeft) && dwAvail > 0) {
         char buffer[4096];
@@ -307,9 +276,7 @@ void Terminal::readFromPipe() {
 
 void Terminal::writeToPipe(const std::string& cmd) {
 #ifdef _WIN32
-    if (!hChildStd_IN_Wr) return;
-    std::string fullCmd = cmd + "\r\n";
-    DWORD dwWritten;
+    if (!hChildStd_IN_Wr) return; std::string fullCmd = cmd + "\r\n"; DWORD dwWritten;
     WriteFile(hChildStd_IN_Wr, fullCmd.c_str(), fullCmd.size(), &dwWritten, NULL);
 #endif
 #ifdef __APPLE__
@@ -353,8 +320,7 @@ void Terminal::runCommand(const std::string& cmd) {
 }
 
 void Terminal::update(bool isFocused) {
-    readFromPipe(); // Always read output
-
+    readFromPipe();
     if (!isFocused) return;
 
     // Scrollback
@@ -389,10 +355,7 @@ void Terminal::update(bool isFocused) {
 
     // Input text
     int c = GetCharPressed();
-    while (c > 0) { 
-        if (c >= 32 && c <= 126) inputBuffer += (char)c; 
-        c = GetCharPressed(); 
-    }
+    while (c > 0) { if (c >= 32 && c <= 126) inputBuffer += (char)c; c = GetCharPressed(); }
     if (IsKeyPressed(KEY_BACKSPACE) && !inputBuffer.empty()) inputBuffer.pop_back();
     
     // Execute
@@ -429,10 +392,10 @@ void Terminal::update(bool isFocused) {
 }
 
 void Terminal::render(Rectangle bounds, Font font) {
-    DrawRectangleRec(bounds, theme.panelBg);
-    DrawRectangleLinesEx(bounds, 1, theme.border);
-    DrawRectangle(bounds.x, bounds.y - 25, bounds.width, 25, theme.border);
-    DrawTextEx(font, "TERMINAL", {bounds.x + 5, bounds.y - 22}, Config::FONT_SIZE_UI, 1, theme.text);
+    if (bounds.height <= 0) return;
+    
+    // --- FIX: DRAW HEADER INSIDE BOUNDS ---
+    float headerH = 25.0f;
     
     BeginScissorMode((int)bounds.x, (int)bounds.y, (int)bounds.width, (int)bounds.height);
         float y = bounds.y + bounds.height - 25;
