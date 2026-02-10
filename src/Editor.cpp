@@ -8,6 +8,45 @@ Theme theme;
 AppSettings settings; 
 std::vector<Toast> toastQueue;
 
+static bool IsImageFile(const std::string& path) {
+    auto lower = path;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    return lower.size() >= 4 &&
+           (lower.rfind(".png") == lower.size() - 4 ||
+            lower.rfind(".jpg") == lower.size() - 4 ||
+            lower.rfind(".jpeg") == lower.size() - 5 ||
+            lower.rfind(".gif") == lower.size() - 4 ||
+            lower.rfind(".bmp") == lower.size() - 4);
+}
+
+static bool IsAudioFile(const std::string& path) {
+    auto lower = path;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    return lower.size() >= 4 &&
+           (lower.rfind(".wav") == lower.size() - 4 ||
+            lower.rfind(".mp3") == lower.size() - 4 ||
+            lower.rfind(".ogg") == lower.size() - 4);
+}
+
+static Texture2D LoadPreviewTexture(const std::string& path, int maxDim) {
+    Image img = LoadImage(path.c_str());
+    if (img.data == NULL) return {0};
+    ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    int w = img.width;
+    int h = img.height;
+    int largest = (w > h) ? w : h;
+    if (largest > maxDim && maxDim > 0) {
+        float scale = (float)maxDim / (float)largest;
+        int newW = (int)roundf(w * scale);
+        int newH = (int)roundf(h * scale);
+        ImageResize(&img, newW, newH);
+    }
+    Texture2D tex = LoadTextureFromImage(img);
+    SetTextureFilter(tex, TEXTURE_FILTER_BILINEAR);
+    UnloadImage(img);
+    return tex;
+}
+
 // Helper: UTF-8 Conversion
 std::string CodepointToUTF8(int cp) {
     std::string res;
@@ -41,7 +80,10 @@ void SaveSettings() {
     std::ofstream out("data/settings.cfg");
     if (out.is_open()) {
         out << "fontPath=" << settings.fontPath << "\n";
+        out << "shellPath=" << settings.shellPath << "\n";
         out << "cFlags=" << settings.cFlags << "\n";
+        out << "imagePreview=" << (settings.imagePreview ? 1 : 0) << "\n";
+        out << "audioPreview=" << (settings.audioPreview ? 1 : 0) << "\n";
         out << "fontSize=" << settings.fontSize << "\n";
         out << "sidebarW=" << settings.sidebarWidth << "\n";
         out << "layout=" << (int)settings.layout << "\n";
@@ -60,12 +102,16 @@ void LoadSettings() {
         std::string key = line.substr(0, eq);
         std::string val = line.substr(eq + 1);
         if (key == "fontPath") settings.fontPath = val;
+        else if (key == "shellPath") settings.shellPath = val;
         else if (key == "cFlags") settings.cFlags = val;
+        else if (key == "imagePreview") settings.imagePreview = (val == "1");
+        else if (key == "audioPreview") settings.audioPreview = (val == "1");
         else if (key == "fontSize") settings.fontSize = std::stoi(val);
         else if (key == "sidebarW") settings.sidebarWidth = std::stoi(val);
         else if (key == "layout") settings.layout = (LayoutMode)std::stoi(val);
         else if (key == "theme") settings.themeIndex = std::stoi(val);
     }
+    if (settings.themeIndex < 0 || settings.themeIndex > 2) settings.themeIndex = 0;
 }
 
 void ApplyThemePreset(int index) {
@@ -74,6 +120,7 @@ void ApplyThemePreset(int index) {
         case 0: theme = { {30,30,30,255}, {37,37,38,255}, {60,60,60,255}, {220,220,220,255}, {86,156,214,255}, {78,201,176,255}, {206,145,120,255}, {106,153,85,255}, {181,206,168,255}, {200,200,200,255}, {38,79,120,100}, {220,220,170,255}, {30,30,30,255}, {45,45,45,255}, {60,60,60,255}, {220,220,220,255}, {50,160,50,255}, {200,60,60,255}, {50,50,52,255}, {0,122,204,255} }; break;
         case 1: theme = { {40,43,53,255}, {30,32,40,255}, {50,50,50,255}, {224,226,228,255}, {147,199,99,255}, {103,140,177,255}, {236,118,0,255}, {125,140,147,255}, {255,205,34,255}, {224,226,228,255}, {60,70,80,100}, {224,226,228,255}, {40,43,53,255}, {35,38,45,255}, {50,55,65,255}, {224,226,228,255}, {147,199,99,255}, {236,118,0,255}, {45,48,58,255}, {103,140,177,255} }; break;
         case 2: theme = { {255,255,255,255}, {243,243,243,255}, {200,200,200,255}, {50,50,50,255}, {0,0,255,255}, {43,145,175,255}, {163,21,21,255}, {0,128,0,255}, {9,134,88,255}, {0,0,0,255}, {173,214,255,100}, {200,150,50,255}, {255,255,255,255}, {230,230,230,255}, {220,220,220,255}, {20,20,20,255}, {0,180,0,255}, {200,50,50,255}, {230,230,230,255}, {0,120,215,255} }; break;
+        default: ApplyThemePreset(0); break;
     }
 }
 
@@ -103,6 +150,13 @@ void Editor::updateFontMetrics() {
     lineHeight = (int)m.y;
 }
 
+static float GetGutterWidth(Font font, int fontSize, size_t lineCount) {
+    int digits = (int)std::to_string(lineCount > 0 ? lineCount : 1).size();
+    if (digits < 2) digits = 2;
+    std::string sample(digits, '9');
+    return MeasureTextEx(font, sample.c_str(), (float)fontSize, 1.0f).x + 16.0f;
+}
+
 Document& Editor::currentDoc() {
     if (docs.empty()) createNewFile();
     if (activeTab >= (int)docs.size()) activeTab = (int)docs.size() - 1;
@@ -110,6 +164,15 @@ Document& Editor::currentDoc() {
 }
 
 std::string Editor::getCurrentPath() { return currentDoc().path; }
+
+void Editor::clearPreview() {
+    if (previewTex.id > 0) UnloadTexture(previewTex);
+    if (previewSound.frameCount > 0) UnloadSound(previewSound);
+    previewTex = {0};
+    previewSound = {0};
+    previewPath.clear();
+    previewType = PreviewType::None;
+}
 
 void Editor::pushUndo() {
     Document& doc = currentDoc();
@@ -254,9 +317,10 @@ void Editor::deleteWordBackwards() {
 }
 
 // File IO
-void Editor::createNewFile() { docs.push_back(Document()); activeTab = (int)docs.size() - 1; }
+void Editor::createNewFile() { clearPreview(); docs.push_back(Document()); activeTab = (int)docs.size() - 1; }
 
 void Editor::loadFile(const std::string& path) {
+    clearPreview();
     for (size_t i = 0; i < docs.size(); i++) { if (docs[i].path == path) { activeTab = i; return; } }
     std::ifstream in(path);
     if (in.is_open()) {
@@ -266,6 +330,25 @@ void Editor::loadFile(const std::string& path) {
         Document& curr = currentDoc();
         if (curr.path.empty() && curr.lines.size()==1 && curr.lines[0].empty() && !curr.isDirty) docs[activeTab] = newDoc;
         else { docs.push_back(newDoc); activeTab = (int)docs.size()-1; }
+    }
+}
+
+void Editor::setPreview(const std::string& path) {
+    if (path.empty()) { clearPreview(); return; }
+    if (IsImageFile(path)) {
+        if (!settings.imagePreview) return;
+        if (previewType == PreviewType::Image && previewPath == path) return;
+        clearPreview();
+        previewTex = LoadPreviewTexture(path, 1024);
+        if (previewTex.id > 0) { previewType = PreviewType::Image; previewPath = path; }
+    } else if (IsAudioFile(path)) {
+        if (!settings.audioPreview) return;
+        if (previewType == PreviewType::Audio && previewPath == path) return;
+        clearPreview();
+        previewSound = LoadSound(path.c_str());
+        if (previewSound.frameCount > 0) { previewType = PreviewType::Audio; previewPath = path; }
+    } else {
+        clearPreview();
     }
 }
 
@@ -294,6 +377,7 @@ void Editor::saveFile() {
 void Editor::update(Rectangle bounds, bool isFocused) {
     if (!isFocused) return;
     Document& doc = currentDoc();
+    bool previewActive = (previewType != PreviewType::None);
 
     bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
     bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
@@ -310,9 +394,11 @@ void Editor::update(Rectangle bounds, bool isFocused) {
         float wheel = GetMouseWheelMove();
         if (wheel != 0) { settings.fontSize += (int)wheel * 2; if (settings.fontSize < 10) settings.fontSize = 10; updateFontMetrics(); return; }
     } else {
-        float wheel = GetMouseWheelMove(); doc.scroll -= (int)wheel * 3; if (doc.scroll < 0) doc.scroll = 0;
+        float wheel = GetMouseWheelMove();
+        if (!previewActive) { doc.scroll -= (int)wheel * 3; if (doc.scroll < 0) doc.scroll = 0; }
     }
 
+    if (!previewActive) {
     // Input text
     int c = GetCharPressed();
     if (c > 0) { pushUndo(); deleteSelection(doc); } 
@@ -376,6 +462,7 @@ void Editor::update(Rectangle bounds, bool isFocused) {
     
     if (shift && doc.selecting) { doc.selRowEnd = doc.row; doc.selColEnd = doc.col; }
     if (!shift && doc.selecting && moved) clearSelection(doc);
+    }
 
     // Mouse click
     Vector2 m = GetMousePosition();
@@ -395,8 +482,11 @@ void Editor::update(Rectangle bounds, bool isFocused) {
     }
     
     Rectangle contentR = {bounds.x, bounds.y + tabH, bounds.width, bounds.height - tabH};
-    if (CheckCollisionPointRec(m, contentR)) {
-        float relY = m.y - contentR.y; float relX = m.x - contentR.x;
+    if (!previewActive && CheckCollisionPointRec(m, contentR)) {
+        float gutterW = GetGutterWidth(font, settings.fontSize, doc.lines.size());
+        float relY = m.y - contentR.y;
+        float relX = m.x - contentR.x - gutterW - 4.0f;
+        if (relX < 0.0f) relX = 0.0f;
         int r = (int)(relY / lineHeight) + doc.scroll; r = Clamp(r, 0, (int)doc.lines.size() - 1);
         int c = (int)round(relX / charWidth); 
         c = Clamp(c, 0, (int)doc.lines[r].size());
@@ -434,16 +524,59 @@ void Editor::render(Rectangle bounds) {
     // Render Content
     Rectangle content = {bounds.x, bounds.y+tabH, bounds.width, bounds.height-tabH};
     Document& doc = currentDoc(); DrawRectangleRec(content, theme.bg);
+    if (previewType == PreviewType::Image && !settings.imagePreview) clearPreview();
+    if (previewType == PreviewType::Audio && !settings.audioPreview) clearPreview();
+    if (previewType != PreviewType::None) {
+        float pad = 20.0f;
+        Rectangle area = {content.x + pad, content.y + pad, content.width - pad*2, content.height - pad*2};
+        DrawRectangleLinesEx(area, 1, theme.border);
+        DrawTextEx(font, previewPath.c_str(), {area.x + 8, area.y + 6}, Config::FONT_SIZE_UI, 1, theme.menuText);
+        if (previewType == PreviewType::Image && previewTex.id > 0) {
+            float maxW = area.width - 16;
+            float maxH = area.height - 48;
+            float sx = maxW / (float)previewTex.width;
+            float sy = maxH / (float)previewTex.height;
+            float s = (sx < sy) ? sx : sy;
+            if (s > 1.0f) s = 1.0f;
+            float dw = previewTex.width * s;
+            float dh = previewTex.height * s;
+            float dx = area.x + (area.width - dw) * 0.5f;
+            float dy = area.y + 36 + (maxH - dh) * 0.5f;
+            DrawTexturePro(previewTex,
+                           (Rectangle){0, 0, (float)previewTex.width, (float)previewTex.height},
+                           (Rectangle){dx, dy, dw, dh},
+                           (Vector2){0, 0}, 0.0f, WHITE);
+        } else if (previewType == PreviewType::Audio) {
+            Rectangle btnPlay = {area.x + 16, area.y + 48, 90, 32};
+            Rectangle btnStop = {area.x + 116, area.y + 48, 90, 32};
+            bool hPlay = CheckCollisionPointRec(mouse, btnPlay);
+            bool hStop = CheckCollisionPointRec(mouse, btnStop);
+            DrawRectangleRec(btnPlay, hPlay ? theme.btnNormal : theme.border);
+            DrawRectangleRec(btnStop, hStop ? theme.btnNormal : theme.border);
+            DrawTextEx(font, "Play", {btnPlay.x + 20, btnPlay.y + 6}, 18, 1, WHITE);
+            DrawTextEx(font, "Stop", {btnStop.x + 20, btnStop.y + 6}, 18, 1, WHITE);
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && hPlay && previewSound.frameCount > 0) PlaySound(previewSound);
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && hStop && previewSound.frameCount > 0) StopSound(previewSound);
+        }
+        return;
+    }
+    float gutterW = GetGutterWidth(font, settings.fontSize, doc.lines.size());
+    DrawRectangleRec({content.x, content.y, gutterW, content.height}, theme.panelBg);
+    DrawLine((int)(content.x + gutterW), (int)content.y, (int)(content.x + gutterW), (int)(content.y + content.height), theme.border);
     BeginScissorMode((int)content.x, (int)content.y, (int)content.width, (int)content.height);
         int vis = (int)(content.height / lineHeight) + 1;
         for (int i=0; i<vis; i++) {
             int idx = i + doc.scroll; if (idx >= doc.lines.size()) break;
-            drawLine(doc, idx, (int)content.x, (int)(content.y + i*lineHeight));
+            int lineY = (int)(content.y + i*lineHeight);
+            std::string num = std::to_string(idx + 1);
+            float numW = MeasureTextEx(font, num.c_str(), settings.fontSize, 1.0f).x;
+            DrawTextEx(font, num.c_str(), {content.x + gutterW - 8.0f - numW, (float)lineY}, (float)settings.fontSize, 1.0f, theme.comment);
+            drawLine(doc, idx, (int)(content.x + gutterW + 4), lineY);
         }
         if (showCursor) {
             std::string sub = doc.lines[doc.row].substr(0, doc.col);
             float cursorX = MeasureTextEx(font, sub.c_str(), settings.fontSize, 1.0f).x;
-            int cx = (int)(content.x + cursorX);
+            int cx = (int)(content.x + gutterW + 4 + cursorX);
             int cy = (int)(content.y + (doc.row - doc.scroll) * lineHeight);
             if (cy >= content.y && cy < content.y + content.height) DrawRectangle(cx, cy, 2, lineHeight, theme.cursor);
         }
