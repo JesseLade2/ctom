@@ -7,7 +7,7 @@
 #include <cmath>
 #include <fstream>
 
-namespace Config {
+namespace Config { 
     const int WIN_WIDTH_DEFAULT = 1280;
     const int WIN_HEIGHT_DEFAULT = 800;
     const int FPS_LIMIT = 60;
