@@ -1,5 +1,5 @@
 #include "../include/Globals.hpp"
-#include "../include/Editor.hpp"
+#include "../include/Editor.hpp" 
 #include "../include/FileManager.hpp"
 #include "../include/Terminal.hpp"
 #include <cstdlib> 
