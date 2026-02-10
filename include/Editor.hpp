@@ -42,6 +42,12 @@ private:
     std::unordered_set<std::string> keywords;
     std::unordered_set<std::string> types;
 
+    enum class PreviewType { None, Image, Audio };
+    PreviewType previewType = PreviewType::None;
+    std::string previewPath = "";
+    Texture2D previewTex = { 0 };
+    Sound previewSound = { 0 };
+
     Document& currentDoc();
     void pushUndo();
     void performUndo();
@@ -57,6 +63,7 @@ private:
     void deleteCharBackwards();
     void deleteWordBackwards();
     void drawLine(const Document& doc, int lineIdx, int x, int y);
+    void clearPreview();
 
 public:
     Editor();
@@ -66,6 +73,7 @@ public:
     
     void createNewFile();
     void loadFile(const std::string& path);
+    void setPreview(const std::string& path);
     void saveFile(); 
     void saveAs(); 
 
