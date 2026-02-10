@@ -51,11 +51,14 @@ private:
     void normalizeSelection(int& r1, int& c1, int& r2, int& c2, const Document& doc);
     std::string getSelectedText(const Document& doc);
     
-    void moveLeft(Document& doc);
-    void moveRight(Document& doc);
+    void moveLeft(Document& doc, bool ctrl = false);
+    void moveRight(Document& doc, bool ctrl = false);
     
     void deleteCharBackwards();
     void deleteWordBackwards();
+    void deleteCharForwards();
+    void deleteWordForwards();
+
     void drawLine(const Document& doc, int lineIdx, int x, int y);
 
 public:
