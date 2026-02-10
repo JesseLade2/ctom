@@ -1,7 +1,7 @@
 #pragma once
 #include "Globals.hpp"
 #include <filesystem>
-
+ 
 namespace fs = std::filesystem;
 
 // External platform functions
