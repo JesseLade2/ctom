@@ -11,7 +11,7 @@
     #define NOGDI 
     #define Rectangle Win32_Rectangle_Dummy
     
-    // 3. Include Windows
+    // 3. Include Windows 
     #include <windows.h>
     
     // 4. Undefine everything so Raylib can use the names
