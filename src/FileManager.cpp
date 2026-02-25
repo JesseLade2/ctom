@@ -31,7 +31,9 @@ void FileManager::openFolderDialog() {
 
 void FileManager::openFileDialog() {
     std::string path = OpenWindowsFilePicker();
-    if (!path.empty()) selectedFile = path;
+    if (!path.empty()) {
+        selectedFile = path;
+    }
 }
 
 void FileManager::refresh() {
@@ -82,7 +84,9 @@ void FileManager::update(Rectangle bounds, bool isFocused) {
                             scrollIndex = 0; 
                             refresh(); 
                         }
-                        else selectedFile = entries[eIdx].path().string();
+                        else {
+                            selectedFile = entries[eIdx].path().string();
+                        }
                     }
                 }
             }
@@ -152,4 +156,5 @@ void FileManager::render(Rectangle bounds, Font font) {
             }
         }
     EndScissorMode();
+
 }
